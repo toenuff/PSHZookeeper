@@ -7,94 +7,16 @@ namespace ZooKeeperNet.watcher
     using System.Runtime.CompilerServices;
     using System.Threading;
 
-	public class CountdownWatcher : IWatcher
+	public class Watcher : IWatcher
 	{
 		public delegate void ChangedEvent(object sender, WatchedEvent e);
 		public event ChangedEvent Changed;
 
-		readonly ManualResetEvent resetEvent = new ManualResetEvent(false);
-		private static readonly object sync = new object();
-
-		volatile bool connected;
-
-		public CountdownWatcher()
-		{
-			Reset();
-		}
-
-		[MethodImpl(MethodImplOptions.Synchronized)]
-		public void Reset()
-		{
-			resetEvent.Set();
-			connected = false;
-		}
-
 		[MethodImpl(MethodImplOptions.Synchronized)]
 		public virtual void Process(WatchedEvent @event)
 		{
-			if (@event.State == KeeperState.SyncConnected)
-			{
-				connected = true;
-				lock (sync)
-				{
-					Monitor.PulseAll(sync);
-				}
-				resetEvent.Set();
-			}
-			else
-			{
-				connected = false;
-				lock (sync)
-				{
-					Monitor.PulseAll(sync);
-				}
-			}
 			if (Changed != null) {
 				Changed(this, @event);
-			}
-		}
-
-		[MethodImpl(MethodImplOptions.Synchronized)]
-		bool IsConnected()
-		{
-			return connected;
-		}
-
-		[MethodImpl(MethodImplOptions.Synchronized)]
-		void waitForConnected(TimeSpan timeout)
-		{
-			DateTime expire = DateTime.UtcNow + timeout;
-			TimeSpan left = timeout;
-			while (!connected && left.TotalMilliseconds > 0)
-			{
-				lock (sync)
-				{
-					Monitor.TryEnter(sync, left);
-				}
-				left = expire - DateTime.UtcNow;
-			}
-			if (!connected)
-			{
-				throw new TimeoutException("Did not connect");
-
-			}
-		}
-
-		void waitForDisconnected(TimeSpan timeout)
-		{
-			DateTime expire = DateTime.UtcNow + timeout;
-			TimeSpan left = timeout;
-			while (connected && left.TotalMilliseconds > 0)
-			{
-				lock (sync)
-				{
-					Monitor.TryEnter(sync, left);
-				}
-				left = expire - DateTime.UtcNow;
-			}
-			if (connected)
-			{
-				throw new TimeoutException("Did not disconnect");
 			}
 		}
 	}
