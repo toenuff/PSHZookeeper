@@ -46,13 +46,14 @@ function New-MasterLock {
 		$InputObject |Start-Master
 	} catch [ZooKeeperNet.KeeperException+NodeExistsException] {
 		Write-Verbose "Not Elected Master"
+		$GLOBAL:ismaster=$false
 		# if it exists, we need to watch for when it changes so that we can become master
-		$masterwatcher = new-object zookeepernet.watcher.watcher
+		$masterwatcher = new-object zookeepernet.watcher.watcher |add-member -NotePropertyName zkclient -NotePropertyValue $zkclient -passthru
 		$masterwatcherjob = Register-ObjectEvent -InputObject $masterwatcher -EventName Changed -Action {
 			$message = $event.sourceargs |select state, type, path
 			write-verbose "Master Watcher Triggered"
 			if ($message.type -eq 'NodeDeleted' -and $message.path -eq '/master') {
-				$InputObject |New-MasterLock
+				$sender.zkclient |New-MasterLock
 			} else {
 				$message
 				throw "Unexpected event in master watcher"
@@ -70,11 +71,6 @@ function Start-Master {
 	)
 
 	$InputObject |New-MasterDirectoryLayout
-
-	# grab value without watch
-	# $stat = new-object org.apache.zookeeper.data.stat
-	# [char[]]$zkclient.getdata('/master', $false, $stat) -join ''
-
 
 	# $zkclient.exists('/workers/worker1', $watcher) |out-null
 }
@@ -101,6 +97,7 @@ function New-ConnectionWatcher {
 		}
 	}
 }
+
 while ($true) {
 	if (!$zkclient) {
 		write-verbose "connecting to $servers"

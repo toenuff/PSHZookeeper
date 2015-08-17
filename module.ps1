@@ -35,7 +35,7 @@ function New-EphemeralNode {
 		  [Parameter(Mandatory=$false, Position=1)]
 		  [string] $InputText = 0 #defaults to the byte value of zero if there is no data
 	)
-	$zkclient.create($path, [byte[]][char[]]$InputText, [ZooKeeperNet.Ids]::OPEN_ACL_UNSAFE, [zookeepernet.createmode]::Ephemeral)
+	$InputObject.create($path, [byte[]][char[]]$InputText, [ZooKeeperNet.Ids]::OPEN_ACL_UNSAFE, [zookeepernet.createmode]::Ephemeral)
 }
 
 function Update-NodeData {
@@ -48,7 +48,7 @@ function Update-NodeData {
 		  [Parameter(Mandatory=$false, Position=1)]
 		  [string] $InputText = 0 #defaults to the byte value of zero if there is no data
 	)
-	$zkclient.SetData($path, [byte[]][char[]]$InputText, -1)
+	$InputObject.SetData($path, [byte[]][char[]]$InputText, -1)
 }
 
 function New-PersistentDir {
@@ -61,7 +61,7 @@ function New-PersistentDir {
 	)
 	try {
 		Write-Verbose "Create $path"
-		$return = $zkclient.create($path, 0, [ZookeeperNet.Ids]::OPEN_ACL_UNSAFE, [zookeepernet.createmode]::PERSISTENT)
+		$return = $InputObject.create($path, 0, [ZookeeperNet.Ids]::OPEN_ACL_UNSAFE, [zookeepernet.createmode]::PERSISTENT)
 		Write-Verbose $return
 	} catch [ZooKeeperNet.KeeperException+NodeExistsException] {
 		Write-Verbose "$path already exists - skipped"
