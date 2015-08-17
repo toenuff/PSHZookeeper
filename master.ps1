@@ -41,9 +41,24 @@ function New-MasterLock {
 	)
 	try {
 		$result = $InputObject |New-EphemeralNode '/master' $Name
+		$GLOBAL:ismaster=$true
+		Write-Verbose "Elected Master"
 		$InputObject |Start-Master
 	} catch [ZooKeeperNet.KeeperException+NodeExistsException] {
+		Write-Verbose "Not Elected Master"
 		# if it exists, we need to watch for when it changes so that we can become master
+		$masterwatcher = new-object zookeepernet.watcher.watcher
+		$masterwatcherjob = Register-ObjectEvent -InputObject $masterwatcher -EventName Changed -Action {
+			$message = $event.sourceargs |select state, type, path
+			write-verbose "Master Watcher Triggered"
+			if ($message.type -eq 'NodeDeleted' -and $message.path -eq '/master') {
+				$InputObject |New-MasterLock
+			} else {
+				$message
+				throw "Unexpected event in master watcher"
+			}
+		}
+		$InputObject.exists('/master', $masterwatcher) |out-null
 	}
 }
 
@@ -61,7 +76,7 @@ function Start-Master {
 	# [char[]]$zkclient.getdata('/master', $false, $stat) -join ''
 
 
-	#$zkclient.exists('/workers/worker1', $watcher) |out-null
+	# $zkclient.exists('/workers/worker1', $watcher) |out-null
 }
 
 
@@ -70,12 +85,11 @@ function New-ConnectionWatcher {
 	$GLOBAL:connectionjob = Register-ObjectEvent -InputObject $connectionwatcher -EventName Changed -Action {
 		$message = $event.sourceargs |select state, type, path
 		write-verbose "Connection Watcher Triggered"
-		$message
 		switch ($message.state[-1]) {
 			'SyncConnected' {
 				Write-verbose "Starting Master"
 				$zkclient
-				$zkclient |New-MasterLock
+				$zkclient |New-MasterLock 
 				break
 			}
 			$null {
@@ -94,7 +108,7 @@ while ($true) {
 		$zkclient = new-object ZooKeeperNet.ZooKeeper -ArgumentList @($servers, $timeout, $GLOBAL:connectionwatcher)
 	}
 	sleep 5
-	$GLOBAL:connectionjob |receive-job |% {
+	$GLOBAL:connectionjob |receive-job -norecurse |% {
 		write-verbose $_
 		if ($_ -eq "RestartZKCLient") {
 			$zkclient.dispose()
