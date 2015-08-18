@@ -1,4 +1,7 @@
-add-type -path "c:\zookeeper\.net\Zookeeper.Net.3.4.6.2\lib\net40\ZooKeeperNet.dll"
+$zookeeperdll = "c:\zookeeper\.net\Zookeeper.Net.3.4.6.2\lib\net40\ZooKeeperNet.dll"
+$log4netdll = "C:\zookeeper\.net\log4net.1.2.10\lib\2.0\log4net.dll"
+add-type -path $zookeeperdll
+add-type -path $log4netdll
 
 $code = @"
 namespace ZooKeeperNet.watcher
@@ -22,8 +25,7 @@ namespace ZooKeeperNet.watcher
 	}
 }
 "@
-add-type -path "C:\zookeeper\.net\log4net.1.2.10\lib\2.0\log4net.dll"
-add-type -typedefinition $code -referencedassemblies "c:\zookeeper\.net\Zookeeper.Net.3.4.6.2\lib\net40\ZooKeeperNet.dll", "C:\zookeeper\.net\log4net.1.2.10\lib\1.1\log4net.dll"
+add-type -typedefinition $code -referencedassemblies $zookeeperdll, $log4netdll
 
 function New-EphemeralNode {
 	param(
@@ -35,6 +37,7 @@ function New-EphemeralNode {
 		  [Parameter(Mandatory=$false, Position=1)]
 		  [string] $InputText = 0 #defaults to the byte value of zero if there is no data
 	)
+	write-verbose 'New-EphemeralNode'
 	$InputObject.create($path, [byte[]][char[]]$InputText, [ZooKeeperNet.Ids]::OPEN_ACL_UNSAFE, [zookeepernet.createmode]::Ephemeral)
 }
 
@@ -49,6 +52,21 @@ function Update-NodeData {
 		  [string] $InputText = 0 #defaults to the byte value of zero if there is no data
 	)
 	$InputObject.SetData($path, [byte[]][char[]]$InputText, -1)
+}
+
+function New-SequentialNodeData {
+	param(
+		  [Parameter(Mandatory=$true, ValueFromPipeline=$true)]
+		  [Alias('zkclient')]
+		  [ZookeeperNet.Zookeeper] $InputObject,
+		  [Parameter(Mandatory=$true, Position=0)]
+		  [string] $Path,
+		  [Parameter(Mandatory=$false, Position=1)]
+		  [string] $InputText = 0 #defaults to the byte value of zero if there is no data
+	)
+	Write-Verbose "Creating item in $path"
+	$return = $InputObject.Create($path, [byte[]][char[]]$InputText, [zookeeperNet.Ids]::OPEN_ACL_UNSAFE, [zookeepernet.createmode]::PERSISTENTSequential)
+	$return
 }
 
 function New-PersistentDir {
