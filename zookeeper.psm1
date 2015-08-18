@@ -89,6 +89,8 @@ function Connect-Zookeeper {
           [string[]] $Computername = @("127.0.0.1:2181"),
           [System.Timespan] $Timeout = (New-Timespan -Seconds 10),
           [Parameter(Mandatory=$true)]
+          [ref]$zkclientref,
+          [Parameter(Mandatory=$true)]
           [scriptblock] $Action
           
     )
@@ -99,11 +101,11 @@ function Connect-Zookeeper {
     $servers = $computername -join ','
 
     $SCRIPT:connectionjob = $null
-    $SCRIPT:zkclient = $null
+    $zkclientref.value = $null
 
     $finished = $false
     while (!$finished) {
-        if (!$SCRIPT:zkclient) {
+        if (!$zkclientref.value) {
             write-verbose "connecting to $servers"
             $connectionwatcher = new-object zookeepernet.watcher.watcher
             $actionstart = @'
@@ -128,21 +130,21 @@ function Connect-Zookeeper {
 '@
             $scriptblock = [scriptblock]::create($actionstart + $action.tostring() + $actionend)
             $SCRIPT:connectionjob = Register-ObjectEvent -InputObject $connectionwatcher -EventName Changed -Action $scriptblock
-            $SCRIPT:zkclient = new-object ZooKeeperNet.ZooKeeper -ArgumentList @($servers, $timeout, $connectionwatcher)
+            $zkclientref.value = new-object ZooKeeperNet.ZooKeeper -ArgumentList @($servers, $timeout, $connectionwatcher)
         }
         sleep 5
         $SCRIPT:connectionjob |receive-job -norecurse |% {
             write-verbose $_
             switch ($_) {
                 "RestartZKCLient" {
-                    $SCRIPT:zkclient.dispose()
-                    $SCRIPT:zkclient = $null
+                    $zkclientref.value.dispose()
+                    $zkclientref.value = $null
                     get-job |stop-job -passthru |remove-job
                     break
                 }
                 "Completed" {
-                    $SCRIPT:zkclient.dispose()
-                    $SCRIPT:zkclient = $null
+                    $zkclientref.value.dispose()
+                    $zkclientref.value = $null
                     $finished = $true
                     $SCRIPT:connectionjob |stop-job -passthru |remove-job
                     break
