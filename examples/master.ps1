@@ -10,7 +10,7 @@ if ($MyInvocation.MyCommand.Path) {
 } else {
     $currdir = $pwd -replace '^\S+::',''
 }
-import-module (join-path $currdir ..\zookeeper.psd1) -force -verbose
+import-module (join-path $currdir ..\zookeeper.psd1)
 
 $servers = $computername -join ','
 
