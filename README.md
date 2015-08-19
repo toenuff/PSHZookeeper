@@ -9,7 +9,7 @@ Zookeeper provides a modern way to dynamically add hosts (workers/masters/others
 An interpreted language created by Microsoft that is built on and taps into the .NET framework.
 
 ## Why?
-The intention of this project is to abstract the creation of the code that connects to and watches zookeeper objects into PowerShell module.  It is also a great example of how amazing PowerShell is as a language and it proves that you can write full-fledged applications using the PowerShell interpreter.  Having access to DSC and the automation cmdlets within Windows PowerShell provides a lot of potential for clustering and creating dynamic farms of applications that may otherwise not be possible out of the box.
+The intention of this project is to abstract the creation of the code that connects to and watches zookeeper objects into via PowerShell module.  It is also a great example of how amazing PowerShell is as a language and it proves that you can write full-fledged applications using PowerShell.  Having access to DSC and the automation cmdlets within Windows PowerShell provides a lot of potential for clustering and creating dynamic farms of applications that may otherwise not be possible out of the box.
 
 # Getting Started
 
@@ -54,14 +54,14 @@ This code is used by the masters and workers that need to run constantly.  It al
 
 ```powershell
 Connect-Zookeeper -Computername "127.0.0.1:2181" -Action {
-	$zkclient |New-EphemeralNode -Path "/workers/$name"
+	$zkclient |New-ZKEphemeralNode -Path "/workers/$name"
 }
 ```
 
 ## Exiting the loop and closing your connections and event watcher
 ```powershell
 Connect-Zookeeper -Computername "127.0.0.1:2181" -Action {
-    $zkclient |new-sequentialnodedata -path "/tasks/task-" -InputText 'some payload'
+    $zkclient |New-ZKSequentialNodeData -path "/tasks/task-" -InputText 'some payload'
     "completed"
 }
 ```
@@ -69,10 +69,10 @@ Connect-Zookeeper -Computername "127.0.0.1:2181" -Action {
 ## Exiting the loop and keeping your connections and event jobs open
 ```powershell
 Connect-Zookeeper -Computername "127.0.0.1:2181" -Action {
-	$zkclient |New-EphemeralNode -Path "/workers/$name"
+	$zkclient |New-ZKEphemeralNode -Path "/workers/$name"
 } -passthru
-$zkclient |new-sequentialnodedata -path "/tasks/task-" -InputText 'some payload'
-get-job |receive-job # this will show the jobs that are watching events
+$zkclient |New-SequentialNodeData -path "/tasks/task-" -InputText 'some payload'
+Get-Job |Receive-Job # this will show the jobs that are watching events
 ```
 
 ## Variables in the Action block
@@ -82,7 +82,7 @@ Besides the special $zkclient variable, you may access any variables that you ex
 ```powershell
 $GLOBAL:payload = 'This is payload in the global scope'
 Connect-Zookeeper -Computername "127.0.0.1:2181" -Action {
-    $zkclient |new-sequentialnodedata -path "/tasks/task-" -InputText $GLOBAL:payload
+    $zkclient |New-SequentialNodeData -path "/tasks/task-" -InputText $GLOBAL:payload
     "completed"
 }
 ```
@@ -109,7 +109,9 @@ Feel free to contribute as you see fit.  I'm happy to take pull requests.  <ahem
 # More info and Links
 
 * [Zookeeper](https://zookeeper.apache.org/) - The main project site
+
 * [.NET Zookeeper Dll](https://github.com/ewhauser/zookeeper) - The project and source code
+
 * [Oreilly Zookeeper Book](http://shop.oreilly.com/product/0636920028901.do) - The perfect book to read if you want to know how to zookeeper
 
 * [Tome's Blog](http://powertoe.wordpress.com) - My blog - mostly on Windows PowerShell
