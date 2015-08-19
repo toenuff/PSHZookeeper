@@ -5,8 +5,7 @@ param(
 )
 
 $servers = $computername -join ','
-# dot sourcing functions til this is proper module
-. .\module.ps1
+import-module .\zookeeper.psd1
 
 # Following is for dev purpose - ensure a blank zkclient
 if ($zkclient) {
@@ -86,7 +85,7 @@ function New-TasksWatch {
 	$InputObject.GetChildren("/tasks", $taskwatcher) |start-task
 }
 
-function start-task {
+function Start-Task {
 	param(
 		[Parameter(Mandatory=$true, ValueFromPipeline=$true)]
 		[string[]] $path
@@ -139,7 +138,7 @@ function New-ConnectionWatcher {
 		switch ($message.state[-1]) {
 			'SyncConnected' {
 				Write-verbose "Starting Node"
-				$zkclient |New-MasterLock 
+				$GLOBAL:zkclient |New-MasterLock 
 				break
 			}
 			$null {
@@ -156,14 +155,14 @@ while ($true) {
 	if (!$zkclient) {
 		write-verbose "connecting to $servers"
 		New-ConnectionWatcher
-		$zkclient = new-object ZooKeeperNet.ZooKeeper -ArgumentList @($servers, $timeout, $GLOBAL:connectionwatcher)
+		$GLOBAL:zkclient = new-object ZooKeeperNet.ZooKeeper -ArgumentList @($servers, $timeout, $GLOBAL:connectionwatcher)
 	}
 	sleep 5
 	$GLOBAL:connectionjob |receive-job -norecurse |% {
 		write-verbose $_
 		if ($_ -eq "RestartZKCLient") {
-			$zkclient.dispose()
-			$zkclient = $null
+			$GLOBAL:zkclient.dispose()
+			$GLOBAL:zkclient = $null
 			get-job |stop-job -passthru |remove-job
 		}
 	}

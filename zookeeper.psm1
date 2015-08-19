@@ -1,6 +1,8 @@
 $zookeeperdll = ([zookeepernet.zookeeper]).assembly.location
 $log4netdll = ([log4net.LogManager]).assembly.location
 
+$GLOBAL:zkclient = $null
+
 $code = @"
 namespace ZooKeeperNet.watcher
 {
@@ -89,10 +91,8 @@ function Connect-Zookeeper {
           [string[]] $Computername = @("127.0.0.1:2181"),
           [System.Timespan] $Timeout = (New-Timespan -Seconds 10),
           [Parameter(Mandatory=$true)]
-          [ref]$zkclientref,
-          [Parameter(Mandatory=$true)]
-          [scriptblock] $Action
-          
+          [scriptblock] $Action,
+          [switch] $Passthru
     )
     # action should return the message "Completed" on a line for it to execute
     # and end.  Otherwise, connect-zookeeper will run in a loop and attempt to reconnect
@@ -101,11 +101,11 @@ function Connect-Zookeeper {
     $servers = $computername -join ','
 
     $SCRIPT:connectionjob = $null
-    $zkclientref.value = $null
+    $GLOBAL:zkclient = $null
 
     $finished = $false
     while (!$finished) {
-        if (!$zkclientref.value) {
+        if (!$GLOBAL:zkclient) {
             write-verbose "connecting to $servers"
             $connectionwatcher = new-object zookeepernet.watcher.watcher
             $actionstart = @'
@@ -130,21 +130,28 @@ function Connect-Zookeeper {
 '@
             $scriptblock = [scriptblock]::create($actionstart + $action.tostring() + $actionend)
             $SCRIPT:connectionjob = Register-ObjectEvent -InputObject $connectionwatcher -EventName Changed -Action $scriptblock
-            $zkclientref.value = new-object ZooKeeperNet.ZooKeeper -ArgumentList @($servers, $timeout, $connectionwatcher)
+            $GLOBAL:zkclient = new-object ZooKeeperNet.ZooKeeper -ArgumentList @($servers, $timeout, $connectionwatcher)
+            while ($SCRIPT.connectionjob.state -eq 'Stopped') {
+                sleep 1
+            }
+        } else {
+            if ($passthru) {
+                $GLOBAL:zkclient
+                break
+            }
         }
-        sleep 5
         $SCRIPT:connectionjob |receive-job -norecurse |% {
             write-verbose $_
             switch ($_) {
                 "RestartZKCLient" {
-                    $zkclientref.value.dispose()
-                    $zkclientref.value = $null
+                    $GLOBAL:zkclient.dispose()
+                    $GLOBAL:zkclient = $null
                     get-job |stop-job -passthru |remove-job
                     break
                 }
                 "Completed" {
-                    $zkclientref.value.dispose()
-                    $zkclientref.value = $null
+                    $GLOBAL:zkclient.dispose()
+                    $GLOBAL:zkclient = $null
                     $finished = $true
                     $SCRIPT:connectionjob |stop-job -passthru |remove-job
                     break
