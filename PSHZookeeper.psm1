@@ -41,7 +41,7 @@ namespace ZooKeeperNet.watcher
 "@
 add-type -typedefinition $code -referencedassemblies $zookeeperdll, $log4netdll
 
-function New-EphemeralNode {
+function New-ZKEphemeralNode {
 	param(
 		  [Parameter(Mandatory=$true, ValueFromPipeline=$true)]
 		  [Alias('zkclient')]
@@ -51,11 +51,11 @@ function New-EphemeralNode {
 		  [Parameter(Mandatory=$false, Position=1)]
 		  [string] $InputText = 0 #defaults to the byte value of zero if there is no data
 	)
-	write-verbose 'New-EphemeralNode'
+	write-verbose 'New-ZKEphemeralNode'
 	$InputObject.create($path, [byte[]][char[]]$InputText, [ZooKeeperNet.Ids]::OPEN_ACL_UNSAFE, [zookeepernet.createmode]::Ephemeral)
 }
 
-function Update-NodeData {
+function Update-ZKNodeData {
 	param(
 		  [Parameter(Mandatory=$true, ValueFromPipeline=$true)]
 		  [Alias('zkclient')]
@@ -68,7 +68,7 @@ function Update-NodeData {
 	$InputObject.SetData($path, [byte[]][char[]]$InputText, -1)
 }
 
-function New-SequentialNodeData {
+function New-ZKSequentialNodeData {
 	param(
 		  [Parameter(Mandatory=$true, ValueFromPipeline=$true)]
 		  [Alias('zkclient')]
@@ -83,7 +83,26 @@ function New-SequentialNodeData {
 	$return
 }
 
-function New-PersistentDir {
+function New-ZKPersistentNode {
+	param(
+		  [Parameter(Mandatory=$true, ValueFromPipeline=$true)]
+		  [Alias('zkclient')]
+		  [ZookeeperNet.Zookeeper] $InputObject,
+		  [Parameter(Mandatory=$true, Position=0)]
+		  [string] $Path,
+          [Parameter(Mandatory=$false, Position=1)]
+          [string] $Data=0
+	)
+	try {
+		Write-Verbose "Create $path"
+		$return = $InputObject.create($path, [byte[]][char[]]$data, [ZookeeperNet.Ids]::OPEN_ACL_UNSAFE, [zookeepernet.createmode]::PERSISTENT)
+		Write-Verbose $return
+	} catch [ZooKeeperNet.KeeperException+NodeExistsException] {
+		Write-Verbose "$path already exists - skipped"
+	}
+}
+
+function Remove-ZKNode {
 	param(
 		  [Parameter(Mandatory=$true, ValueFromPipeline=$true)]
 		  [Alias('zkclient')]
@@ -91,13 +110,43 @@ function New-PersistentDir {
 		  [Parameter(Mandatory=$true, Position=0)]
 		  [string] $Path
 	)
-	try {
-		Write-Verbose "Create $path"
-		$return = $InputObject.create($path, 0, [ZookeeperNet.Ids]::OPEN_ACL_UNSAFE, [zookeepernet.createmode]::PERSISTENT)
-		Write-Verbose $return
-	} catch [ZooKeeperNet.KeeperException+NodeExistsException] {
-		Write-Verbose "$path already exists - skipped"
-	}
+    Write-Verbose "Deleting $path"
+    $InputObject.Delete($path, $null)
+}
+
+function Move-ZKNode {
+	param(
+        [Parameter(Mandatory=$true, ValueFromPipeline=$true)]
+        [Alias('zkclient')]
+        [ZookeeperNet.Zookeeper] $InputObject,
+		[Parameter(Mandatory=$true, Position=0)]
+		[string] $Path,
+        [Parameter(Mandatory=$true, Position=1)]
+        [string] $Destination
+	)
+	PROCESS {
+		Write-Verbose "Moving $path to $destination"
+
+        Write-Verbose "Getting data from $path"
+		$data = $InputObject |Get-ZKData $path 
+        write-verbose $data
+
+        $nodename = Split-Path $path -Leaf
+
+	    $InputObject |New-ZKPersistentNode ((join-path $destination $nodename) -replace '\\', '/') $data
+        $InputObject |Remove-ZKNode $path 
+    }
+}
+
+function Get-ZKData {
+	param(
+		  [Parameter(Mandatory=$true, ValueFromPipeline=$true)]
+		  [Alias('zkclient')]
+		  [ZookeeperNet.Zookeeper] $InputObject,
+		  [Parameter(Mandatory=$true, Position=0)]
+		  [string] $Path
+	)
+    [char[]]$InputObject.GetData($path, $false, $null) -join ''
 }
 
 function Connect-Zookeeper {

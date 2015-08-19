@@ -1,0 +1,12 @@
+Must write tests - current manual tests:
+
+run master and worker - kill zookeeper - start zookeeper - watch them come back - sometimes race condition on ephemeral for worker need to fix
+
+run 2 masters - watch one lock - kill the one with the lock - watch the other take it
+
+run master and worker - submit task - watch it go to worker
+
+run master and 2 workers - submit task with sleep command for 30 - kill worker it is cheduled on and watch it come up on the other worker
+
+Not working yet:
+run master and no worker - submit task - 

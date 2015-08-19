@@ -24,7 +24,7 @@ if ($MyInvocation.MyCommand.Path) {
 } else {
     $currdir = $pwd -replace '^\S+::',''
 }
-import-module (join-path $currdir ..\zookeeper.psd1)
+import-module (join-path $currdir ..\PSHZookeeper.psd1)
 
 $servers = $computername -join ','
 
@@ -32,6 +32,6 @@ $GLOBAL:payload = $inputObject |Convertto-Json
 
 Connect-Zookeeper -ComputerName $servers -Action {
     Write-verbose "Sending task to Zookeeper"
-    $zkclient |new-sequentialnodedata -path "/tasks/task-" -InputText $payload
+    $zkclient |new-ZKSequentialNodeData -path "/tasks/task-" -InputText $payload
     "Completed"
 }
