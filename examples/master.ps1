@@ -4,20 +4,16 @@ param(
 	  [string[]] $Computername = @("127.0.0.1:2181")
 )
 
-$servers = $computername -join ','
-import-module .\zookeeper.psd1
-
-# Following is for dev purpose - ensure a blank zkclient
-if ($zkclient) {
-	$zkclient.dispose()
+$currdir = ''
+if ($MyInvocation.MyCommand.Path) {
+    $currdir = Split-Path $MyInvocation.MyCommand.Path
+} else {
+    $currdir = $pwd -replace '^\S+::',''
 }
-$zkclient = $null
-get-job |stop-job -passthru |remove-job
+import-module (join-path $currdir ..\zookeeper.psd1) -force -verbose
 
-$timeout = New-Timespan -seconds 10
-$connectionwatcher = $null
-$connectionjob = $null
-$workers = $null
+$servers = $computername -join ','
+
 
 function Start-Master {
 	param(
@@ -97,7 +93,7 @@ function Start-Task {
 	}
 }
 
-function New-MasterLock {
+function GLOBAL:New-MasterLock {
 	param(
 		  [Parameter(Mandatory=$true, ValueFromPipeline=$true)]
 		  [Alias('zkclient')]
@@ -125,46 +121,7 @@ function New-MasterLock {
 	}
 }
 
-function New-ConnectionWatcher {
-	# this function stinks - I'd much wrather create the objects and pass zkclient to it, but zkclient doesn't exist the first time it is created.
-	# That's the reason for all of the hoakie code here.  If I tried to use $sender.zkclient it might not exist by the time I need it and I would have no way
-	# of waiting for it to show up because it will have already triggered.  The only way around would be to update the c# class to have a default constructor
-	# and a connect() method to make the actual connection.
-	# I also can't put this in the module code because of scoping issues - I need access to the global zkclient
-	$GLOBAL:connectionwatcher = new-object zookeepernet.watcher.watcher
-	$GLOBAL:connectionjob = Register-ObjectEvent -InputObject $GLOBAL:connectionwatcher -EventName Changed -Action {
-		$message = $event.sourceargs |select state, type, path
-		write-verbose "Connection Watcher Triggered"
-		switch ($message.state[-1]) {
-			'SyncConnected' {
-				Write-verbose "Starting Node"
-				$GLOBAL:zkclient |New-MasterLock 
-				break
-			}
-			$null {
-				break
-			}
-			default {
-				"RestartZKCLient"
-			}
-		}
-	}
+Connect-Zookeeper -ComputerName $servers -Action {
+    Write-verbose "Attempting to grab a lock for master"
+    $GLOBAL:zkclient |New-MasterLock 
 }
-
-while ($true) {
-	if (!$zkclient) {
-		write-verbose "connecting to $servers"
-		New-ConnectionWatcher
-		$GLOBAL:zkclient = new-object ZooKeeperNet.ZooKeeper -ArgumentList @($servers, $timeout, $GLOBAL:connectionwatcher)
-	}
-	sleep 5
-	$GLOBAL:connectionjob |receive-job -norecurse |% {
-		write-verbose $_
-		if ($_ -eq "RestartZKCLient") {
-			$GLOBAL:zkclient.dispose()
-			$GLOBAL:zkclient = $null
-			get-job |stop-job -passthru |remove-job
-		}
-	}
-}
-
